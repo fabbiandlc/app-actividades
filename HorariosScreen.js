@@ -13,72 +13,100 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { Picker } from "@react-native-picker/picker";
+import { useDataContext } from "./DataContext";
+import { fetchAll, update } from "./Database"; // Import update for direct updates
+import { v4 as uuidv4 } from "uuid"; // Use UUID for new IDs
+import { stylesHorarios as styles } from "./stylesHorarios";
 
 const HorariosScreen = ({ navigation }) => {
-  // Estados para datos
-  const [horarios, setHorarios] = useState([]);
-  const [docentes, setDocentes] = useState([]);
-  const [materias, setMaterias] = useState([]);
-  const [salones, setSalones] = useState([]);
-  const [filteredDocentes, setFilteredDocentes] = useState([]);
+  const {
+    docentes,
+    setDocentes,
+    materias,
+    setMaterias,
+    grupos,
+    horarios,
+    setHorarios,
+  } = useDataContext();
 
-  // Estados de UI
+  const [filteredDocentes, setFilteredDocentes] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [docenteModalVisible, setDocenteModalVisible] = useState(false);
   const [selectedDocente, setSelectedDocente] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentView, setCurrentView] = useState("list"); // 'list' o 'schedule'
+  const [currentView, setCurrentView] = useState("list");
   const [editingHorario, setEditingHorario] = useState(null);
 
-  // Estado para nuevo docente
   const [newDocente, setNewDocente] = useState({
     nombre: "",
     apellido: "",
   });
 
-  // Estado para el nuevo horario
   const [newHorario, setNewHorario] = useState({
     docenteId: "",
     dia: "Lunes",
     horaInicio: "07:00",
-    horaFin: "08:00",
+    horaFin: "07:50",
     materiaId: "",
     salonId: "",
+    color: "#E3F2FD",
   });
 
-  // Definición de horas disponibles (de 7:00 a 20:00)
-  const horasDisponibles = useMemo(() => {
-    const horas = [];
-    for (let i = 7; i <= 20; i++) {
-      const hora = i < 10 ? `0${i}:00` : `${i}:00`;
-      horas.push(hora);
-    }
-    return horas;
-  }, []);
+  const coloresDisponibles = [
+    { nombre: "Azul Claro", valor: "#E3F2FD" },
+    { nombre: "Verde Claro", valor: "#C8E6C9" },
+    { nombre: "Amarillo Claro", valor: "#FFF9C4" },
+    { nombre: "Rosa Claro", valor: "#F8BBD0" },
+    { nombre: "Púrpura Claro", valor: "#D1C4E9" },
+    { nombre: "Naranja Claro", valor: "#FFCCBC" },
+  ];
 
-  // Días de la semana
+  const convertirHoraAMinutos = (hora) => {
+    const [horas, minutos] = hora.split(":");
+    return parseInt(horas) * 60 + parseInt(minutos);
+  };
+
+  const bloquesHorarios = useMemo(
+    () => [
+      { horaInicio: "07:00", horaFin: "07:50", esReceso: false },
+      { horaInicio: "07:50", horaFin: "08:40", esReceso: false },
+      { horaInicio: "08:40", horaFin: "09:30", esReceso: false },
+      { horaInicio: "09:30", horaFin: "10:20", esReceso: false },
+      { horaInicio: "10:20", horaFin: "10:50", esReceso: true },
+      { horaInicio: "10:50", horaFin: "11:40", esReceso: false },
+      { horaInicio: "11:40", horaFin: "12:30", esReceso: false },
+      { horaInicio: "12:30", horaFin: "13:20", esReceso: false },
+      { horaInicio: "13:20", horaFin: "14:10", esReceso: false },
+      { horaInicio: "14:10", horaFin: "15:00", esReceso: false },
+      { horaInicio: "15:00", horaFin: "15:50", esReceso: false },
+      { horaInicio: "15:50", horaFin: "16:00", esReceso: false },
+      { horaInicio: "16:00", horaFin: "16:30", esReceso: true },
+      { horaInicio: "16:30", horaFin: "17:20", esReceso: false },
+      { horaInicio: "17:20", horaFin: "18:10", esReceso: false },
+      { horaInicio: "18:10", horaFin: "19:00", esReceso: false },
+      { horaInicio: "19:00", horaFin: "19:50", esReceso: false },
+      { horaInicio: "19:50", horaFin: "20:40", esReceso: false },
+      { horaInicio: "20:40", horaFin: "21:30", esReceso: false },
+      { horaInicio: "21:30", horaFin: "22:00", esReceso: false },
+    ],
+    []
+  );
+
   const diasSemana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
-  // Cargar datos simulados para pruebas
-  useEffect(() => {
-    // Solo cargar materias y salones, no docentes
-    setMaterias([
-      { id: "1", nombre: "Matemáticas", codigo: "MAT101" },
-      { id: "2", nombre: "Español", codigo: "ESP201" },
-      { id: "3", nombre: "Ciencias", codigo: "CIE301" },
-    ]);
+  const horasDisponibles = useMemo(() => {
+    const horas = [];
+    bloquesHorarios.forEach((bloque) => {
+      if (!bloque.esReceso) {
+        if (!horas.includes(bloque.horaInicio)) horas.push(bloque.horaInicio);
+        if (!horas.includes(bloque.horaFin)) horas.push(bloque.horaFin);
+      }
+    });
+    return horas.sort(
+      (a, b) => convertirHoraAMinutos(a) - convertirHoraAMinutos(b)
+    );
+  }, [bloquesHorarios]);
 
-    setSalones([
-      { id: "1", nombre: "Aula 101" },
-      { id: "2", nombre: "Aula 102" },
-      { id: "3", nombre: "Laboratorio 1" },
-    ]);
-
-    // No precargar horarios
-    setHorarios([]);
-  }, []);
-
-  // Filtrar docentes según la búsqueda
   useEffect(() => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -93,7 +121,6 @@ const HorariosScreen = ({ navigation }) => {
     }
   }, [searchQuery, docentes]);
 
-  // Obtener nombre completo del docente
   const getDocenteNombre = useCallback(
     (docenteId) => {
       const docente = docentes.find((d) => d.id === docenteId);
@@ -104,7 +131,6 @@ const HorariosScreen = ({ navigation }) => {
     [docentes]
   );
 
-  // Obtener nombre de la materia
   const getMateriaNombre = useCallback(
     (materiaId) => {
       const materia = materias.find((m) => m.id === materiaId);
@@ -113,41 +139,37 @@ const HorariosScreen = ({ navigation }) => {
     [materias]
   );
 
-  // Obtener nombre del salón
-  const getSalonNombre = useCallback(
-    (salonId) => {
-      const salon = salones.find((s) => s.id === salonId);
-      return salon ? salon.nombre : "Salón no encontrado";
+  const getMateriaColor = useCallback(
+    (materiaId) => {
+      const materia = materias.find((m) => m.id === materiaId);
+      return materia && materia.color ? materia.color : "#E3F2FD";
     },
-    [salones]
+    [materias]
   );
 
-  // Verificar si hay conflictos en el horario
+  const getSalonNombre = useCallback(
+    (salonId) => {
+      const grupo = grupos.find((g) => g.id === salonId);
+      return grupo ? grupo.nombre : "Salón no encontrado";
+    },
+    [grupos]
+  );
+
   const verificarConflictos = useCallback(
     (horario, horarioId = null) => {
-      // Verificar conflictos de horario para el mismo docente, salón o con horarios existentes
       const conflictos = horarios.filter((h) => {
-        // Si estamos editando, excluir el horario actual
         if (horarioId && h.id === horarioId) return false;
-
-        // Verificar si es el mismo día
         if (h.dia !== horario.dia) return false;
 
-        // Verificar si hay superposición de horas
         const inicio1 = convertirHoraAMinutos(horario.horaInicio);
         const fin1 = convertirHoraAMinutos(horario.horaFin);
         const inicio2 = convertirHoraAMinutos(h.horaInicio);
         const fin2 = convertirHoraAMinutos(h.horaFin);
 
-        const hayConflictoHoras =
-          (inicio1 < fin2 && fin1 > inicio2) ||
-          (inicio2 < fin1 && fin2 > inicio1);
-
-        if (!hayConflictoHoras) return false;
-
-        // Verificar conflicto por docente, materia o salón
         return (
-          h.docenteId === horario.docenteId || h.salonId === horario.salonId
+          inicio1 < fin2 &&
+          fin1 > inicio2 &&
+          (h.docenteId === horario.docenteId || h.salonId === horario.salonId)
         );
       });
 
@@ -156,60 +178,44 @@ const HorariosScreen = ({ navigation }) => {
     [horarios]
   );
 
-  // Convertir hora (formato HH:MM) a minutos para facilitar las comparaciones
-  const convertirHoraAMinutos = (hora) => {
-    const [horas, minutos] = hora.split(":");
-    return parseInt(horas) * 60 + parseInt(minutos);
-  };
-
-  // Guardar nuevo docente
   const handleGuardarDocente = () => {
-    // Validaciones
     if (!newDocente.nombre || !newDocente.apellido) {
       Alert.alert("Error", "Todos los campos son obligatorios");
       return;
     }
 
-    // Crear nuevo docente
-    const id = Date.now().toString();
+    const id = uuidv4(); // Use UUID instead of Date.now()
     const nuevoDocente = { ...newDocente, id };
     setDocentes([...docentes, nuevoDocente]);
 
-    // Resetear estado y cerrar modal
-    setNewDocente({
-      nombre: "",
-      apellido: "",
-    });
+    setNewDocente({ nombre: "", apellido: "" });
     setDocenteModalVisible(false);
   };
 
-  // Guardar nuevo horario
-  const handleGuardarHorario = () => {
-    // Validaciones
+  const handleGuardarHorario = async () => {
     if (
       !newHorario.docenteId ||
       !newHorario.materiaId ||
       !newHorario.salonId ||
       !newHorario.dia ||
       !newHorario.horaInicio ||
-      !newHorario.horaFin
+      !newHorario.horaFin ||
+      !newHorario.color
     ) {
       Alert.alert("Error", "Todos los campos son obligatorios");
       return;
     }
 
-    // Validar que hora de inicio sea menor que hora de fin
     const inicioMinutos = convertirHoraAMinutos(newHorario.horaInicio);
     const finMinutos = convertirHoraAMinutos(newHorario.horaFin);
     if (inicioMinutos >= finMinutos) {
       Alert.alert(
         "Error",
-        "La hora de inicio debe ser anterior a la hora de fin"
+        "La hora de entrada debe ser anterior a la hora de salida"
       );
       return;
     }
 
-    // Verificar conflictos
     if (verificarConflictos(newHorario, editingHorario?.id)) {
       Alert.alert(
         "Conflicto de Horario",
@@ -218,34 +224,47 @@ const HorariosScreen = ({ navigation }) => {
       return;
     }
 
-    // Guardar horario
-    if (editingHorario) {
-      // Editar horario existente
-      setHorarios(
-        horarios.map((h) =>
-          h.id === editingHorario.id ? { ...newHorario, id: h.id } : h
-        )
+    try {
+      const materiaSeleccionada = materias.find(
+        (m) => m.id === newHorario.materiaId
       );
-    } else {
-      // Crear nuevo horario
-      const id = Date.now().toString();
-      setHorarios([...horarios, { ...newHorario, id }]);
-    }
+      if (materiaSeleccionada && !materiaSeleccionada.color) {
+        // Directly update the materia in the database
+        const updatedMateria = { ...materiaSeleccionada, color: newHorario.color };
+        await update("Materias", updatedMateria, updatedMateria.id);
+        // Sync materias state with database
+        const freshMaterias = await fetchAll("Materias");
+        setMaterias(freshMaterias);
+      }
 
-    // Resetear estado y cerrar modal
-    setNewHorario({
-      docenteId: "",
-      dia: "Lunes",
-      horaInicio: "07:00",
-      horaFin: "08:00",
-      materiaId: "",
-      salonId: "",
-    });
-    setEditingHorario(null);
-    setModalVisible(false);
+      if (editingHorario) {
+        setHorarios(
+          horarios.map((h) =>
+            h.id === editingHorario.id ? { ...newHorario, id: h.id } : h
+          )
+        );
+      } else {
+        const id = uuidv4(); // Use UUID for new horarios
+        setHorarios([...horarios, { ...newHorario, id }]);
+      }
+
+      setNewHorario({
+        docenteId: "",
+        dia: "Lunes",
+        horaInicio: "07:00",
+        horaFin: "07:50",
+        materiaId: "",
+        salonId: "",
+        color: "#E3F2FD",
+      });
+      setEditingHorario(null);
+      setModalVisible(false);
+    } catch (error) {
+      console.error("Error saving horario:", error);
+      Alert.alert("Error", "No se pudo guardar el horario. Intenta de nuevo.");
+    }
   };
 
-  // Editar horario existente
   const handleEditarHorario = (horario) => {
     setEditingHorario(horario);
     setNewHorario({
@@ -255,12 +274,15 @@ const HorariosScreen = ({ navigation }) => {
       horaFin: horario.horaFin,
       materiaId: horario.materiaId,
       salonId: horario.salonId,
+      color: horario.color || getMateriaColor(horario.materiaId),
     });
     setModalVisible(true);
   };
 
-  // Eliminar horario
   const handleEliminarHorario = (id) => {
+    console.log("Attempting to delete horario with ID:", id);
+    console.log("Current horarios:", horarios);
+
     Alert.alert(
       "Eliminar Horario",
       "¿Estás seguro que deseas eliminar este horario?",
@@ -269,7 +291,14 @@ const HorariosScreen = ({ navigation }) => {
         {
           text: "Eliminar",
           onPress: () => {
-            setHorarios(horarios.filter((h) => h.id !== id));
+            const updatedHorarios = horarios.filter(
+              (h) => String(h.id) !== String(id)
+            );
+            console.log("Updated horarios:", updatedHorarios);
+            setHorarios(updatedHorarios);
+            if (updatedHorarios.length === horarios.length) {
+              console.warn("No horario was deleted. Check ID matching.");
+            }
           },
           style: "destructive",
         },
@@ -277,19 +306,16 @@ const HorariosScreen = ({ navigation }) => {
     );
   };
 
-  // Seleccionar docente para ver su horario
   const handleSeleccionarDocente = (docente) => {
     setSelectedDocente(docente);
     setCurrentView("schedule");
   };
 
-  // Obtener los horarios del docente seleccionado
   const horariosDocente = useMemo(() => {
     if (!selectedDocente) return [];
     return horarios.filter((h) => h.docenteId === selectedDocente.id);
   }, [selectedDocente, horarios]);
 
-  // Renderizar item de docente
   const renderDocenteItem = ({ item }) => (
     <TouchableOpacity
       style={styles.card}
@@ -316,50 +342,70 @@ const HorariosScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  // Renderizar celda de horario
-  const renderHorarioCell = (dia, hora) => {
-    // Filtrar las clases que coinciden con este día y hora
+  const renderHorarioCell = (dia, bloque) => {
+    const bloqueInicioMin = convertirHoraAMinutos(bloque.horaInicio);
+    const bloqueFinMin = convertirHoraAMinutos(bloque.horaFin);
+
     const clases = horariosDocente.filter((horario) => {
-      const inicioClase = convertirHoraAMinutos(horario.horaInicio);
-      const finClase = convertirHoraAMinutos(horario.horaFin);
-      const horaActual = convertirHoraAMinutos(hora);
+      const horarioInicioMin = convertirHoraAMinutos(horario.horaInicio);
+      const horarioFinMin = convertirHoraAMinutos(horario.horaFin);
+
       return (
         horario.dia === dia &&
-        horaActual >= inicioClase &&
-        horaActual < finClase
+        horarioInicioMin < bloqueFinMin &&
+        horarioFinMin > bloqueInicioMin
       );
     });
+
+    if (bloque.esReceso) {
+      return (
+        <View style={styles.recesoCell}>
+          <Text style={styles.recesoText}>Receso</Text>
+        </View>
+      );
+    }
 
     if (clases.length === 0) {
       return <View style={styles.emptyCell} />;
     }
 
-    // Si hay clases, mostrar la información
-    const clase = clases[0]; // Tomamos la primera clase encontrada
+    const clase = clases[0];
+    const esInicio =
+      convertirHoraAMinutos(clase.horaInicio) === bloqueInicioMin;
+
     return (
       <TouchableOpacity
-        style={styles.classCell}
+        style={[
+          styles.classCell,
+          {
+            height: esInicio ? "auto" : 0,
+            borderWidth: esInicio ? 0.5 : 0,
+            backgroundColor: clase.color || getMateriaColor(clase.materiaId),
+          },
+        ]}
         onPress={() => handleEditarHorario(clase)}
       >
-        <Text style={styles.classCellTitle} numberOfLines={1}>
-          {getMateriaNombre(clase.materiaId)}
-        </Text>
-        <Text style={styles.classCellSubtitle} numberOfLines={1}>
-          {getSalonNombre(clase.salonId)}
-        </Text>
-        <Text style={styles.classCellTime}>
-          {clase.horaInicio} - {clase.horaFin}
-        </Text>
+        {esInicio && (
+          <>
+            <Text style={styles.classCellTitle} numberOfLines={1}>
+              {getMateriaNombre(clase.materiaId)}
+            </Text>
+            <Text style={styles.classCellSubtitle} numberOfLines={1}>
+              {getSalonNombre(clase.salonId)}
+            </Text>
+            <Text style={styles.classCellTime}>
+              {clase.horaInicio} - {clase.horaFin}
+            </Text>
+          </>
+        )}
       </TouchableOpacity>
     );
   };
 
-  // Renderizar formulario para crear docente
   const renderDocenteForm = () => (
     <View style={styles.modalContainer}>
       <View style={styles.modalContent}>
         <Text style={styles.modalTitle}>Nuevo Docente</Text>
-
         <Text style={styles.inputLabel}>Nombre</Text>
         <TextInput
           style={styles.textInput}
@@ -369,7 +415,6 @@ const HorariosScreen = ({ navigation }) => {
           }
           placeholder="Ingrese nombre"
         />
-
         <Text style={styles.inputLabel}>Apellido</Text>
         <TextInput
           style={styles.textInput}
@@ -379,16 +424,12 @@ const HorariosScreen = ({ navigation }) => {
           }
           placeholder="Ingrese apellido"
         />
-
         <View style={styles.modalButtons}>
           <TouchableOpacity
             style={[styles.modalButton, styles.cancelButton]}
             onPress={() => {
               setDocenteModalVisible(false);
-              setNewDocente({
-                nombre: "",
-                apellido: "",
-              });
+              setNewDocente({ nombre: "", apellido: "" });
             }}
           >
             <Text style={styles.cancelButtonText}>Cancelar</Text>
@@ -404,14 +445,12 @@ const HorariosScreen = ({ navigation }) => {
     </View>
   );
 
-  // Renderizar formulario para crear/editar horario
   const renderHorarioForm = () => (
     <View style={styles.modalContainer}>
       <View style={styles.modalContent}>
         <Text style={styles.modalTitle}>
           {editingHorario ? "Editar Horario" : "Nuevo Horario"}
         </Text>
-
         <Text style={styles.inputLabel}>Docente</Text>
         <View style={styles.pickerContainer}>
           <Picker
@@ -431,15 +470,19 @@ const HorariosScreen = ({ navigation }) => {
             ))}
           </Picker>
         </View>
-
         <Text style={styles.inputLabel}>Materia</Text>
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={newHorario.materiaId}
             style={styles.picker}
-            onValueChange={(itemValue) =>
-              setNewHorario({ ...newHorario, materiaId: itemValue })
-            }
+            onValueChange={(itemValue) => {
+              const materia = materias.find((m) => m.id === itemValue);
+              setNewHorario({
+                ...newHorario,
+                materiaId: itemValue,
+                color: materia?.color || newHorario.color,
+              });
+            }}
           >
             <Picker.Item label="Seleccionar materia" value="" />
             {materias.map((materia) => (
@@ -451,7 +494,6 @@ const HorariosScreen = ({ navigation }) => {
             ))}
           </Picker>
         </View>
-
         <Text style={styles.inputLabel}>Salón</Text>
         <View style={styles.pickerContainer}>
           <Picker
@@ -462,16 +504,15 @@ const HorariosScreen = ({ navigation }) => {
             }
           >
             <Picker.Item label="Seleccionar salón" value="" />
-            {salones.map((salon) => (
+            {grupos.map((grupo) => (
               <Picker.Item
-                key={salon.id}
-                label={salon.nombre}
-                value={salon.id}
+                key={grupo.id}
+                label={grupo.nombre}
+                value={grupo.id}
               />
             ))}
           </Picker>
         </View>
-
         <Text style={styles.inputLabel}>Día</Text>
         <View style={styles.pickerContainer}>
           <Picker
@@ -486,17 +527,27 @@ const HorariosScreen = ({ navigation }) => {
             ))}
           </Picker>
         </View>
-
         <View style={styles.timeContainer}>
           <View style={styles.timeField}>
-            <Text style={styles.inputLabel}>Hora Inicio</Text>
+            <Text style={styles.inputLabel}>Hora de Entrada</Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={newHorario.horaInicio}
                 style={styles.picker}
-                onValueChange={(itemValue) =>
-                  setNewHorario({ ...newHorario, horaInicio: itemValue })
-                }
+                onValueChange={(itemValue) => {
+                  setNewHorario({ ...newHorario, horaInicio: itemValue });
+                  const inicioMin = convertirHoraAMinutos(itemValue);
+                  const finMin = convertirHoraAMinutos(newHorario.horaFin);
+                  if (finMin <= inicioMin) {
+                    const nextHora = horasDisponibles.find(
+                      (h) => convertirHoraAMinutos(h) > inicioMin
+                    );
+                    setNewHorario((prev) => ({
+                      ...prev,
+                      horaFin: nextHora || prev.horaFin,
+                    }));
+                  }
+                }}
               >
                 {horasDisponibles.map((hora) => (
                   <Picker.Item
@@ -508,9 +559,8 @@ const HorariosScreen = ({ navigation }) => {
               </Picker>
             </View>
           </View>
-
           <View style={styles.timeField}>
-            <Text style={styles.inputLabel}>Hora Fin</Text>
+            <Text style={styles.inputLabel}>Hora de Salida</Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={newHorario.horaFin}
@@ -519,14 +569,41 @@ const HorariosScreen = ({ navigation }) => {
                   setNewHorario({ ...newHorario, horaFin: itemValue })
                 }
               >
-                {horasDisponibles.map((hora) => (
-                  <Picker.Item key={`fin-${hora}`} label={hora} value={hora} />
-                ))}
+                {horasDisponibles
+                  .filter(
+                    (hora) =>
+                      convertirHoraAMinutos(hora) >
+                      convertirHoraAMinutos(newHorario.horaInicio)
+                  )
+                  .map((hora) => (
+                    <Picker.Item
+                      key={`fin-${hora}`}
+                      label={hora}
+                      value={hora}
+                    />
+                  ))}
               </Picker>
             </View>
           </View>
         </View>
-
+        <Text style={styles.inputLabel}>Color</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={newHorario.color}
+            style={styles.picker}
+            onValueChange={(itemValue) =>
+              setNewHorario({ ...newHorario, color: itemValue })
+            }
+          >
+            {coloresDisponibles.map((color) => (
+              <Picker.Item
+                key={color.valor}
+                label={color.nombre}
+                value={color.valor}
+              />
+            ))}
+          </Picker>
+        </View>
         <View style={styles.modalButtons}>
           <TouchableOpacity
             style={[styles.modalButton, styles.cancelButton]}
@@ -537,9 +614,10 @@ const HorariosScreen = ({ navigation }) => {
                 docenteId: "",
                 dia: "Lunes",
                 horaInicio: "07:00",
-                horaFin: "08:00",
+                horaFin: "07:50",
                 materiaId: "",
                 salonId: "",
+                color: "#E3F2FD",
               });
             }}
           >
@@ -558,7 +636,6 @@ const HorariosScreen = ({ navigation }) => {
     </View>
   );
 
-  // Renderizar vista de lista de docentes
   const renderListView = () => (
     <>
       <View style={styles.searchContainer}>
@@ -576,7 +653,6 @@ const HorariosScreen = ({ navigation }) => {
           clearButtonMode="while-editing"
         />
       </View>
-
       <FlatList
         data={filteredDocentes}
         renderItem={renderDocenteItem}
@@ -594,7 +670,6 @@ const HorariosScreen = ({ navigation }) => {
           </View>
         }
       />
-
       <TouchableOpacity
         style={styles.fab}
         onPress={() => {
@@ -606,7 +681,6 @@ const HorariosScreen = ({ navigation }) => {
     </>
   );
 
-  // Renderizar vista de horario
   const renderScheduleView = () => {
     if (!selectedDocente) return null;
 
@@ -639,11 +713,9 @@ const HorariosScreen = ({ navigation }) => {
             <Ionicons name="add" size={24} color="#007BFF" />
           </TouchableOpacity>
         </View>
-
         <ScrollView style={styles.scheduleScrollContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.scheduleTable}>
-              {/* Encabezados de columnas (días) */}
               <View style={styles.tableRow}>
                 <View style={styles.timeCell}>
                   <Text style={styles.timeCellText}>Hora</Text>
@@ -654,38 +726,41 @@ const HorariosScreen = ({ navigation }) => {
                   </View>
                 ))}
               </View>
-
-              {/* Filas de horarios */}
-              {horasDisponibles.map((hora, index) => {
-                if (index === horasDisponibles.length - 1) return null; // No mostrar la última hora como inicio
-                const horaFin = horasDisponibles[index + 1];
-                return (
-                  <View key={hora} style={styles.tableRow}>
-                    <View style={styles.timeCell}>
-                      <Text style={styles.timeCellText}>
-                        {hora} - {horaFin}
-                      </Text>
-                    </View>
-                    {diasSemana.map((dia) => (
-                      <View key={`${dia}-${hora}`} style={styles.tableCell}>
-                        {renderHorarioCell(dia, hora)}
-                      </View>
-                    ))}
+              {bloquesHorarios.map((bloque) => (
+                <View key={bloque.horaInicio} style={styles.tableRow}>
+                  <View style={styles.timeCell}>
+                    <Text style={styles.timeCellText}>
+                      {bloque.horaInicio} - {bloque.horaFin}
+                    </Text>
                   </View>
-                );
-              })}
+                  {diasSemana.map((dia) => (
+                    <View
+                      key={`${dia}-${bloque.horaInicio}`}
+                      style={styles.tableCell}
+                    >
+                      {renderHorarioCell(dia, bloque)}
+                    </View>
+                  ))}
+                </View>
+              ))}
             </View>
           </ScrollView>
         </ScrollView>
-
-        {/* Leyenda */}
         {horariosDocente.length > 0 && (
           <ScrollView style={styles.legendScrollContainer}>
             <View style={styles.legendContainer}>
               <Text style={styles.legendTitle}>Clases Programadas:</Text>
               {horariosDocente.map((horario) => (
                 <View key={horario.id} style={styles.legendItem}>
-                  <View style={styles.legendColor} />
+                  <View
+                    style={[
+                      styles.legendColor,
+                      {
+                        backgroundColor:
+                          horario.color || getMateriaColor(horario.materiaId),
+                      },
+                    ]}
+                  />
                   <View style={styles.legendInfo}>
                     <Text style={styles.legendText}>
                       {getMateriaNombre(horario.materiaId)} -{" "}
@@ -729,8 +804,6 @@ const HorariosScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {currentView === "list" ? renderListView() : renderScheduleView()}
-
-      {/* Modal para crear docente */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -741,8 +814,6 @@ const HorariosScreen = ({ navigation }) => {
       >
         {renderDocenteForm()}
       </Modal>
-
-      {/* Modal para crear/editar horario */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -757,340 +828,5 @@ const HorariosScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    margin: 10,
-    paddingHorizontal: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: 46,
-    fontSize: 16,
-  },
-  list: {
-    padding: 10,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 4,
-  },
-  cardActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-  },
-  viewButton: {
-    backgroundColor: "#007BFF",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#fff",
-    marginLeft: 4,
-    fontWeight: "500",
-  },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#555",
-    marginTop: 12,
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: "#888",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  fab: {
-    position: "absolute",
-    bottom: 16,
-    right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#007BFF",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 16,
-    color: "#333",
-    textAlign: "center",
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#555",
-    marginBottom: 4,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 6,
-    padding: 10,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 6,
-    marginBottom: 12,
-    overflow: "hidden",
-  },
-  picker: {
-    height: 50,
-    width: "100%",
-  },
-  timeContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  timeField: {
-    width: "48%",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
-  },
-  modalButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  saveButton: {
-    backgroundColor: "#007BFF",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  cancelButton: {
-    backgroundColor: "#f2f2f2",
-  },
-  cancelButtonText: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  scheduleContainer: {
-    flex: 1,
-  },
-  scheduleHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 10,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  backButton: {
-    padding: 5,
-  },
-  scheduleTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    flex: 1,
-    marginLeft: 10,
-  },
-  addButton: {
-    padding: 5,
-  },
-  scheduleScrollContainer: {
-    flex: 1,
-  },
-  scheduleTable: {
-    margin: 10,
-  },
-  tableRow: {
-    flexDirection: "row",
-  },
-  timeCell: {
-    width: 80,
-    height: 60,
-    padding: 5,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    borderWidth: 0.5,
-    borderColor: "#ddd",
-  },
-  timeCellText: {
-    fontSize: 12,
-    color: "#666",
-    textAlign: "center",
-  },
-  dayHeaderCell: {
-    width: 120,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#007BFF",
-    borderWidth: 0.5,
-    borderColor: "#ddd",
-  },
-  dayHeaderText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  tableCell: {
-    width: 120,
-    height: 60,
-    padding: 2,
-    borderWidth: 0.5,
-    borderColor: "#ddd",
-  },
-  emptyCell: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  classCell: {
-    flex: 1,
-    backgroundColor: "#E3F2FD",
-    borderRadius: 4,
-    padding: 4,
-    justifyContent: "center",
-  },
-  classCellTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#1565C0",
-  },
-  classCellSubtitle: {
-    fontSize: 10,
-    color: "#5C6BC0",
-  },
-  classCellTime: {
-    fontSize: 9,
-    color: "#5C6BC0",
-    marginTop: 2,
-  },
-  legendScrollContainer: {
-    maxHeight: 200,
-    backgroundColor: "#fff",
-  },
-  legendContainer: {
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-  },
-  legendTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-    color: "#333",
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#eee",
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#E3F2FD",
-    marginRight: 8,
-  },
-  legendInfo: {
-    flex: 1,
-  },
-  legendText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  legendSubtext: {
-    fontSize: 12,
-    color: "#666",
-  },
-  legendActions: {
-    flexDirection: "row",
-  },
-  legendButton: {
-    padding: 5,
-    marginLeft: 5,
-  },
-});
 
 export default HorariosScreen;

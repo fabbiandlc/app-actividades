@@ -11,30 +11,22 @@ import {
   SafeAreaView,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-
-// Componentes de formulario para la creación/edición de cada entidad
+import { useDataContext } from "./DataContext";
 import DocenteForm from "./DocenteForm";
 import MateriaForm from "./MateriaForm";
 import GrupoForm from "./GrupoForm";
 
 const AdministracionScreen = ({ navigation }) => {
-  // Estado para controlar la sección activa
-  const [activeSection, setActiveSection] = useState("docentes"); // 'docentes', 'materias', 'grupos'
+  const [activeSection, setActiveSection] = useState("docentes");
+  const { docentes, setDocentes, materias, setMaterias, grupos, setGrupos } =
+    useDataContext();
 
-  // Estados para datos
-  const [docentes, setDocentes] = useState([]);
-  const [materias, setMaterias] = useState([]);
-  const [grupos, setGrupos] = useState([]);
-  const [horarios, setHorarios] = useState([]);
-
-  // Estados de UI
   const [modalVisible, setModalVisible] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("nombre"); // 'nombre', 'fecha', etc.
-  const [sortOrder, setSortOrder] = useState("asc"); // 'asc', 'desc'
+  const [sortBy, setSortBy] = useState("nombre");
+  const [sortOrder, setSortOrder] = useState("asc");
 
-  // Determinar qué datos mostrar según la sección activa
   const getActiveData = useCallback(() => {
     switch (activeSection) {
       case "docentes":
@@ -48,7 +40,6 @@ const AdministracionScreen = ({ navigation }) => {
     }
   }, [activeSection, docentes, materias, grupos]);
 
-  // Determinar qué función setter usar según la sección activa
   const getActiveSetter = useCallback(() => {
     switch (activeSection) {
       case "docentes":
@@ -60,17 +51,13 @@ const AdministracionScreen = ({ navigation }) => {
       default:
         return () => {};
     }
-  }, [activeSection]);
+  }, [activeSection, setDocentes, setMaterias, setGrupos]);
 
-  // Filtrar y ordenar items según la búsqueda y criterios de ordenamiento
   const filteredItems = useMemo(() => {
     let result = [...getActiveData()];
-
-    // Aplicar filtro de búsqueda
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter((item) => {
-        // Adaptar según el tipo de entidad
         switch (activeSection) {
           case "docentes":
             return (
@@ -90,10 +77,8 @@ const AdministracionScreen = ({ navigation }) => {
       });
     }
 
-    // Aplicar ordenamiento
     result.sort((a, b) => {
       let comparison = 0;
-
       switch (sortBy) {
         case "nombre":
           comparison = a.nombre.localeCompare(b.nombre);
@@ -113,14 +98,12 @@ const AdministracionScreen = ({ navigation }) => {
         default:
           comparison = 0;
       }
-
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
     return result;
   }, [getActiveData, activeSection, searchQuery, sortBy, sortOrder]);
 
-  // Manejadores de eventos
   const handleEdit = useCallback(
     (index) => {
       const data = getActiveData();
@@ -145,10 +128,7 @@ const AdministracionScreen = ({ navigation }) => {
         `Eliminar ${messageMap[activeSection]}`,
         `¿Estás seguro de que deseas eliminar este ${messageMap[activeSection]}?`,
         [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
+          { text: "Cancelar", style: "cancel" },
           {
             text: "Eliminar",
             onPress: () => {
@@ -170,7 +150,6 @@ const AdministracionScreen = ({ navigation }) => {
     setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
 
-  // Renderizar items según la sección activa
   const renderItem = ({ item, index }) => {
     switch (activeSection) {
       case "docentes":
@@ -184,16 +163,14 @@ const AdministracionScreen = ({ navigation }) => {
     }
   };
 
-  // Renderizadores para cada tipo de entidad
   const renderDocenteItem = ({ item, index }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>
           {item.nombre} {item.apellido}
         </Text>
-        <Text style={styles.cardDate}>{item.email}</Text>
+        <Text style={styles.cardDate}>{item.email || "N/A"}</Text>
       </View>
-
       <View style={styles.cardStats}>
         <View style={styles.statItem}>
           <Ionicons name="book-outline" size={16} color="#007BFF" />
@@ -212,7 +189,6 @@ const AdministracionScreen = ({ navigation }) => {
           <Text style={styles.statText}>{item.telefono || "N/A"}</Text>
         </View>
       </View>
-
       <View style={styles.cardActions}>
         <TouchableOpacity
           style={[styles.actionButton, styles.editButton]}
@@ -238,7 +214,6 @@ const AdministracionScreen = ({ navigation }) => {
         <Text style={styles.cardTitle}>{item.nombre}</Text>
         <Text style={styles.cardDate}>Código: {item.codigo}</Text>
       </View>
-
       <View style={styles.cardStats}>
         <View style={styles.statItem}>
           <Ionicons name="time-outline" size={16} color="#007BFF" />
@@ -253,7 +228,6 @@ const AdministracionScreen = ({ navigation }) => {
           <Text style={styles.statText}>{item.semestre || "Variable"}</Text>
         </View>
       </View>
-
       <View style={styles.cardActions}>
         <TouchableOpacity
           style={[styles.actionButton, styles.editButton]}
@@ -277,32 +251,14 @@ const AdministracionScreen = ({ navigation }) => {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.nombre}</Text>
-        <Text style={styles.cardDate}>
-          Grado: {item.grado} - Turno: {item.turno}
+        <Text style={styles.cardDate}>Turno: {item.turno}</Text>
+      </View>
+      <View style={styles.tutorContainer}>
+        <Ionicons name="person-outline" size={16} color="#007BFF" />
+        <Text style={styles.tutorText} numberOfLines={1} ellipsizeMode="tail">
+          {item.tutor ? `Tutor: ${item.tutor}` : "Sin tutor"}
         </Text>
       </View>
-
-      <View style={styles.cardStats}>
-        <View style={styles.statItem}>
-          <Ionicons name="people-outline" size={16} color="#007BFF" />
-          <Text style={styles.statText}>
-            {item.estudiantes || 0} estudiantes
-          </Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="book-outline" size={16} color="#007BFF" />
-          <Text style={styles.statText}>
-            {item.materias?.length || 0} materias
-          </Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="person-outline" size={16} color="#007BFF" />
-          <Text style={styles.statText}>
-            {item.tutor ? `Tutor: ${item.tutor}` : "Sin tutor"}
-          </Text>
-        </View>
-      </View>
-
       <View style={styles.cardActions}>
         <TouchableOpacity
           style={[styles.actionButton, styles.editButton]}
@@ -322,7 +278,6 @@ const AdministracionScreen = ({ navigation }) => {
     </View>
   );
 
-  // Obtener el formulario correcto según la sección activa
   const getFormComponent = () => {
     switch (activeSection) {
       case "docentes":
@@ -362,7 +317,6 @@ const AdministracionScreen = ({ navigation }) => {
     }
   };
 
-  // Obtener las opciones de ordenamiento según la sección activa
   const getSortOptions = () => {
     switch (activeSection) {
       case "docentes":
@@ -387,23 +341,19 @@ const AdministracionScreen = ({ navigation }) => {
     }
   };
 
-  // Obtener el mensaje para el estado vacío
   const getEmptyMessage = () => {
     const entityMap = {
       docentes: "docentes",
       materias: "materias",
       grupos: "grupos",
     };
-
     return searchQuery
       ? "Intenta con otra búsqueda"
       : `Presiona el botón + para crear ${entityMap[activeSection]}`;
   };
 
-  // JSX principal
   return (
     <SafeAreaView style={styles.container}>
-      {/* Tabs de navegación */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeSection === "docentes" && styles.activeTab]}
@@ -427,7 +377,6 @@ const AdministracionScreen = ({ navigation }) => {
             Docentes
           </Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.tab, activeSection === "materias" && styles.activeTab]}
           onPress={() => {
@@ -450,7 +399,6 @@ const AdministracionScreen = ({ navigation }) => {
             Materias
           </Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.tab, activeSection === "grupos" && styles.activeTab]}
           onPress={() => {
@@ -474,8 +422,6 @@ const AdministracionScreen = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Barra de búsqueda */}
       <View style={styles.searchContainer}>
         <Ionicons
           name="search-outline"
@@ -491,8 +437,6 @@ const AdministracionScreen = ({ navigation }) => {
           clearButtonMode="while-editing"
         />
       </View>
-
-      {/* Opciones de ordenamiento */}
       <View style={styles.sortContainer}>
         <Text style={styles.sortLabel}>Ordenar por:</Text>
         <View style={styles.sortButtons}>
@@ -529,8 +473,6 @@ const AdministracionScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Lista de items */}
       <FlatList
         data={filteredItems}
         renderItem={renderItem}
@@ -554,8 +496,6 @@ const AdministracionScreen = ({ navigation }) => {
           </View>
         }
       />
-
-      {/* Botón de agregar nuevo */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => {
@@ -565,8 +505,6 @@ const AdministracionScreen = ({ navigation }) => {
       >
         <Ionicons name="add" size={24} color="#fff" />
       </TouchableOpacity>
-
-      {/* Modal para crear/editar */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -698,6 +636,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 4,
+    color: "#333",
   },
   cardDate: {
     fontSize: 14,
@@ -721,6 +660,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     marginLeft: 4,
+  },
+  tutorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    marginBottom: 10,
+  },
+  tutorText: {
+    fontSize: 14,
+    color: "#666",
+    marginLeft: 4,
+    flex: 1,
+    numberOfLines: 1,
+    ellipsizeMode: "tail",
   },
   cardActions: {
     flexDirection: "row",

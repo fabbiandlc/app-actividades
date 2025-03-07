@@ -30,6 +30,9 @@
         "projectId": "03cd55a6-92bf-4f9d-aa6b-81832648132e"
       }
     },
-    "owner": "fabiansking"
+    "owner": "fabiansking",
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }

@@ -11,6 +11,8 @@ import {
   Switch,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { insert, update } from "./Database.js"; // Assuming these exist
+import { v4 as uuidv4 } from "uuid";
 
 const GrupoForm = ({
   setModalVisible,
@@ -22,54 +24,77 @@ const GrupoForm = ({
   materias,
 }) => {
   const [formData, setFormData] = useState({
-    id: Date.now(),
+    id: null,
     nombre: "",
-    grado: "",
     turno: "Matutino",
-    estudiantes: "",
-    materias: [],
     tutor: "",
+    materias: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
 
-  // Cargar datos si está en modo edición
   useEffect(() => {
     if (editIndex !== null && grupos[editIndex]) {
       setFormData({
         ...grupos[editIndex],
         updatedAt: new Date().toISOString(),
       });
+    } else {
+      // Reset form for new group
+      setFormData({
+        id: uuidv4(), // Unique ID for new groups
+        nombre: "",
+        turno: "Matutino",
+        tutor: "",
+        materias: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     }
   }, [editIndex, grupos]);
 
-  // Manejar el guardado del formulario
-  const handleSave = () => {
-    // Validación básica
-    if (!formData.nombre.trim() || !formData.grado.trim()) {
-      alert("Por favor completa los campos obligatorios: Nombre y Grado");
+  const handleSave = async () => {
+    if (!formData.nombre.trim()) {
+      alert("Por favor completa el campo obligatorio: Identificador del grupo");
       return;
     }
 
-    let updatedGrupos = [...grupos];
-
-    if (editIndex !== null) {
-      // Actualizar grupo existente
-      updatedGrupos[editIndex] = formData;
-    } else {
-      // Agregar nuevo grupo
-      updatedGrupos.push({
-        ...formData,
-        id: Date.now(), // Generar un nuevo ID
-      });
+    if (isNaN(formData.nombre) || !/^\d{3}$/.test(formData.nombre)) {
+      alert("El identificador del grupo debe ser un número de 3 dígitos (ej. 201, 402)");
+      return;
     }
 
-    setGrupos(updatedGrupos);
-    setModalVisible(false);
-    setEditIndex(null);
+    // Check for duplicate nombre in grupos
+    const isDuplicate = grupos.some(
+      (grupo, idx) => grupo.nombre === formData.nombre && idx !== editIndex
+    );
+    if (isDuplicate) {
+      alert("Ya existe un grupo con este identificador.");
+      return;
+    }
+
+    try {
+      let updatedGrupos = [...grupos];
+
+      if (editIndex !== null) {
+        // Update existing group
+        await update("Grupos", formData, formData.id);
+        updatedGrupos[editIndex] = formData;
+      } else {
+        // Insert new group
+        await insert("Grupos", formData);
+        updatedGrupos.push(formData);
+      }
+
+      setGrupos(updatedGrupos);
+      setModalVisible(false);
+      setEditIndex(null);
+    } catch (error) {
+      console.error("Error saving grupo:", error);
+      alert("Hubo un error al guardar el grupo. Por favor, intenta de nuevo.");
+    }
   };
 
-  // Alternar el turno
   const toggleTurno = () => {
     setFormData({
       ...formData,
@@ -77,7 +102,6 @@ const GrupoForm = ({
     });
   };
 
-  // Cerrar el modal
   const handleClose = () => {
     setModalVisible(false);
     setEditIndex(null);
@@ -99,12 +123,14 @@ const GrupoForm = ({
         </View>
 
         <ScrollView style={styles.formContainer}>
-          <Text style={styles.label}>Nombre *</Text>
+          <Text style={styles.label}>Identificador del grupo *</Text>
           <TextInput
             style={styles.input}
             value={formData.nombre}
             onChangeText={(text) => setFormData({ ...formData, nombre: text })}
-            placeholder="Ej. 1°A, 2°B, etc."
+            placeholder="Ej. 201, 202, 401"
+            keyboardType="numeric"
+            maxLength={3}
           />
 
           <View style={styles.switchContainer}>
@@ -126,11 +152,11 @@ const GrupoForm = ({
             style={styles.input}
             value={formData.tutor}
             onChangeText={(text) => setFormData({ ...formData, tutor: text })}
-            placeholder="Nombre del tutor del grupo"
+            placeholder="Nombre del tutor (opcional)"
           />
 
           <View style={styles.formFooter}>
-            <Text style={styles.requiredText}>* Campos obligatorios</Text>
+            <Text style={styles.requiredText}>* Campo obligatorio</Text>
           </View>
         </ScrollView>
 

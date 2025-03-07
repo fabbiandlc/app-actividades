@@ -1,8 +1,53 @@
-import React, { useContext, useMemo, memo, useCallback } from "react";
+import React, { useContext, useMemo, useCallback, memo } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { Calendar } from "react-native-calendars";
+import { Calendar, LocaleConfig } from "react-native-calendars";
 import { ActivitiesContext } from "./ActivitiesContext";
 import { stylesCalendar } from "./stylesCalendar";
+
+// Configurar el calendario en español
+LocaleConfig.locales["es"] = {
+  monthNames: [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ],
+  monthNamesShort: [
+    "Ene.",
+    "Feb.",
+    "Mar.",
+    "Abr.",
+    "May.",
+    "Jun.",
+    "Jul.",
+    "Ago.",
+    "Sep.",
+    "Oct.",
+    "Nov.",
+    "Dic.",
+  ],
+  dayNames: [
+    "Domingo",
+    "Lunes",
+    "Martes",
+    "Miércoles",
+    "Jueves",
+    "Viernes",
+    "Sábado",
+  ],
+  dayNamesShort: ["Dom.", "Lun.", "Mar.", "Mié.", "Jue.", "Vie.", "Sáb."],
+  today: "Hoy",
+};
+
+LocaleConfig.defaultLocale = "es";
 
 const CALENDAR_THEME = {
   calendarBackground: "#fff",
@@ -42,7 +87,12 @@ const ActivityItem = memo(({ activity, onEdit, onDelete }) => (
 const ActivitiesList = memo(({ activities, date, onEdit, onDelete }) => {
   const formatDate = useCallback((dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("es-MX");
+    return date.toLocaleDateString("es-MX", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }, []);
 
   return (
@@ -79,28 +129,16 @@ const Calendario = () => {
     activitiesForDay,
   } = useContext(ActivitiesContext);
 
-  // Implement edit function that will be used by the Edit button
   const handleEditActivity = useCallback(
     (activity) => {
-      // Find the index of the activity in the main activities array
       const activityIndex = activities.findIndex(
         (item) => item.id === activity.id
       );
-
-      // If we found the activity in our array
       if (activityIndex !== -1) {
-        // You need to dispatch this to your navigation or modal system
-        // This should open the ActivityForm with the proper edit index
-        // For example, if you're using React Navigation:
-        // navigation.navigate('ActivityForm', { editIndex: activityIndex });
-
-        // Or if you're using a modal approach like in your HomeScreen:
-        // Set the editIndex and open the modal
         if (global.setEditIndex && global.setModalVisible) {
           global.setEditIndex(activityIndex);
           global.setModalVisible(true);
         } else {
-          // Fallback if the global handlers aren't available
           Alert.alert(
             "Editar Actividad",
             "Por favor, vaya a la pantalla principal para editar esta actividad."
@@ -111,7 +149,6 @@ const Calendario = () => {
     [activities]
   );
 
-  // Implement delete function that will be used by the Delete button
   const handleDeleteActivity = useCallback(
     (activityId) => {
       Alert.alert(
@@ -125,7 +162,6 @@ const Calendario = () => {
           {
             text: "Eliminar",
             onPress: () => {
-              // Filter out the activity with the given ID
               const updatedActivities = activities.filter(
                 (activity) => activity.id !== activityId
               );
@@ -181,15 +217,10 @@ const Calendario = () => {
   );
 };
 
-// Export a wrapper component that sets up global handlers for edit functionality
 const CalendarioWrapper = () => {
   const { activities } = useContext(ActivitiesContext);
 
-  // Make sure the Calendario component can access the global variables
-  // even when rendered in different navigation contexts
   React.useEffect(() => {
-    // You might need to initialize these globals from your main component
-    // This is a workaround for cross-component communication
     if (!global.activitiesForCalendar) {
       global.activitiesForCalendar = activities;
     }

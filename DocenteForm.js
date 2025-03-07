@@ -10,6 +10,8 @@ import {
   Platform,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { v4 as uuidv4 } from "uuid";
+import { fetchAll } from "./Database"; // Import fetchAll to reload data
 
 const DocenteForm = ({
   setModalVisible,
@@ -19,7 +21,7 @@ const DocenteForm = ({
   setDocentes,
 }) => {
   const [formData, setFormData] = useState({
-    id: Date.now(),
+    id: uuidv4(),
     nombre: "",
     apellido: "",
     email: "",
@@ -30,44 +32,76 @@ const DocenteForm = ({
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Cargar datos si está en modo edición
   useEffect(() => {
     if (editIndex !== null && docentes[editIndex]) {
       setFormData({
         ...docentes[editIndex],
         updatedAt: new Date().toISOString(),
       });
+    } else {
+      setFormData({
+        id: uuidv4(),
+        nombre: "",
+        apellido: "",
+        email: "",
+        telefono: "",
+        especialidad: "",
+        materias: [],
+        grupos: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     }
   }, [editIndex, docentes]);
 
-  // Manejar el guardado del formulario
-  const handleSave = () => {
-    // Validación básica
-    if (!formData.nombre.trim()) {
-      alert("Por favor completa los campos obligatorios: Nombre");
+  const handleSave = async () => {
+    if (isSaving || !formData.nombre.trim()) {
+      if (!formData.nombre.trim()) {
+        alert("Por favor completa los campos obligatorios: Nombre");
+      }
       return;
     }
 
-    let updatedDocentes = [...docentes];
+    setIsSaving(true);
+    try {
+      let updatedDocentes = [...docentes];
 
-    if (editIndex !== null) {
-      // Actualizar docente existente
-      updatedDocentes[editIndex] = formData;
-    } else {
-      // Agregar nuevo docente
-      updatedDocentes.push({
-        ...formData,
-        id: Date.now(), // Generar un nuevo ID
+      if (editIndex !== null) {
+        updatedDocentes[editIndex] = formData;
+      } else {
+        updatedDocentes.push(formData);
+      }
+
+      // Update via context and reload from database
+      await setDocentes(updatedDocentes);
+      const freshDocentes = await fetchAll("Docentes");
+      setDocentes(freshDocentes); // Sync with database
+
+      setModalVisible(false);
+      setEditIndex(null);
+
+      setFormData({
+        id: uuidv4(),
+        nombre: "",
+        apellido: "",
+        email: "",
+        telefono: "",
+        especialidad: "",
+        materias: [],
+        grupos: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
+    } catch (error) {
+      console.error("Error saving docente:", error);
+      alert("Hubo un error al guardar el docente. Por favor, intenta de nuevo.");
+    } finally {
+      setIsSaving(false);
     }
-
-    setDocentes(updatedDocentes);
-    setModalVisible(false);
-    setEditIndex(null);
   };
 
-  // Cerrar el modal
   const handleClose = () => {
     setModalVisible(false);
     setEditIndex(null);
@@ -97,7 +131,15 @@ const DocenteForm = ({
             placeholder="Ingresa el nombre"
           />
 
-          <Text style={styles.label}>Email *</Text>
+          <Text style={styles.label}>Apellido</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.apellido}
+            onChangeText={(text) => setFormData({ ...formData, apellido: text })}
+            placeholder="Ingresa el apellido"
+          />
+
+          <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
             value={formData.email}
@@ -142,10 +184,13 @@ const DocenteForm = ({
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, styles.saveButton]}
+            style={[styles.button, styles.saveButton, isSaving && styles.disabledButton]}
             onPress={handleSave}
+            disabled={isSaving}
           >
-            <Text style={styles.saveButtonText}>Guardar</Text>
+            <Text style={styles.saveButtonText}>
+              {isSaving ? "Guardando..." : "Guardar"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -243,6 +288,9 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "white",
     fontWeight: "500",
+  },
+  disabledButton: {
+    backgroundColor: "#aaa",
   },
 });
 
